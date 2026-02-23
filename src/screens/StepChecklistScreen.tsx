@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
-import { RouteProp, useRoute } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
 import { RepairStep, DiagnosticQuestion } from '../types';
 import { theme } from '../theme';
 import { mockQuestions } from '../data/mockData';
 import * as Speech from 'expo-speech';
+import { useJobTracking } from '../context/JobTrackingContext';
 
 type StepChecklistScreenRouteProp = RouteProp<RootStackParamList, 'StepChecklist'>;
+type StepChecklistScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'StepChecklist'>;
 
 export const StepChecklistScreen = () => {
   const route = useRoute<StepChecklistScreenRouteProp>();
+  const navigation = useNavigation<StepChecklistScreenNavigationProp>();
   const { job } = route.params;
+
+  const { incrementStepsCompleted, currentSession, endJob } = useJobTracking();
 
   const [currentQuestion, setCurrentQuestion] = useState<DiagnosticQuestion | null>(job.diagnosticTree || null);
   const [diagnosis, setDiagnosis] = useState<string | null>(job.issueDescription || null);
@@ -24,6 +30,18 @@ export const StepChecklistScreen = () => {
         Speech.speak(currentQuestion.text);
     }
   }, [currentQuestion]);
+
+  // Check if all steps are completed
+  useEffect(() => {
+      if (steps.length > 0 && steps.every(s => s.isCompleted)) {
+          // All done!
+          const session = endJob(); // This clears the session but returns the data
+          if (session) {
+              // Navigate to JobComplete
+              navigation.navigate('JobComplete', { job, sessionData: session });
+          }
+      }
+  }, [steps]);
 
   const handleAnswer = (option: { label: string; nextStepId?: string; finalDiagnosis?: string; steps?: RepairStep[] }) => {
     Speech.stop();
@@ -48,11 +66,17 @@ export const StepChecklistScreen = () => {
   };
 
   const toggleStep = (id: string) => {
-    setSteps(currentSteps =>
-      currentSteps.map(step =>
+    setSteps(currentSteps => {
+      const newSteps = currentSteps.map(step =>
         step.id === id ? { ...step, isCompleted: !step.isCompleted } : step
-      )
-    );
+      );
+
+      const changedStep = newSteps.find(s => s.id === id);
+      if (changedStep && changedStep.isCompleted) {
+          incrementStepsCompleted();
+      }
+      return newSteps;
+    });
   };
 
   const playVoice = (step: RepairStep) => {

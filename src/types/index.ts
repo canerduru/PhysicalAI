@@ -47,3 +47,17 @@ export interface SafetyWarningData {
   visible: boolean;
   message: string;
 }
+
+export interface JobRecord {
+  id: string;
+  equipmentModel: string;
+  startedAt: string; // ISO Date
+  completedAt: string; // ISO Date
+  totalTimeSeconds: number;
+  stepsCompleted: number;
+  aiQuestionsAsked: number;
+  safetyWarnings: number;
+  toolDetections: number;
+  userRating?: number;
+  userComment?: string;
+}

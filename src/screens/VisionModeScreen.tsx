@@ -9,6 +9,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafetyWarningOverlay } from '../components/SafetyWarningOverlay';
 import { AROverlay } from '../components/AROverlay';
 import { ToolDetectionOverlay } from '../components/ToolDetectionOverlay';
+import { useJobTracking } from '../context/JobTrackingContext';
 
 type VisionModeScreenRouteProp = RouteProp<RootStackParamList, 'VisionMode'>;
 type VisionModeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'VisionMode'>;
@@ -17,6 +18,9 @@ export const VisionModeScreen = () => {
   const route = useRoute<VisionModeScreenRouteProp>();
   const navigation = useNavigation<VisionModeScreenNavigationProp>();
   const { job } = route.params;
+
+  // Tracking Context
+  const { startJob, incrementAiQuestions, incrementSafetyWarnings, incrementToolDetections } = useJobTracking();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanning, setScanning] = useState(true);
@@ -32,6 +36,9 @@ export const VisionModeScreen = () => {
   const [devMenuVisible, setDevMenuVisible] = useState(false);
 
   useEffect(() => {
+    // Start tracking when screen mounts
+    startJob(job.id);
+
     if (permission && !permission.granted) {
       requestPermission();
     }
@@ -67,14 +74,11 @@ export const VisionModeScreen = () => {
   }, []);
 
   const handleMicPress = () => {
-    // Stop current speech
     Speech.stop();
-
-    // Simulate asking "Which wire goes where?"
     setAiMessage("Listening...");
+    incrementAiQuestions(); // Track Usage
 
     setTimeout(() => {
-      // Mock response
       const response = "The red wire connects to the C terminal on the left. I can see it in your image.";
       setAiMessage(response);
       Speech.speak(response);
@@ -83,6 +87,7 @@ export const VisionModeScreen = () => {
 
   // Simulation Handlers
   const triggerSafetyWarning = () => {
+      incrementSafetyWarnings(); // Track Usage
       setSafetyVisible(true);
       Speech.stop();
       Speech.speak("STOP! Turn off power first!");
@@ -90,6 +95,7 @@ export const VisionModeScreen = () => {
   };
 
   const showMultimeter = () => {
+      incrementToolDetections(); // Track Usage
       setToolData({ toolName: 'Multimeter', isCorrect: true, message: 'Ready' });
       setToolVisible(true);
       Speech.speak("I see you have a multimeter, good! Set it to voltage mode.");
@@ -98,6 +104,7 @@ export const VisionModeScreen = () => {
   };
 
   const showWrench = () => {
+      incrementToolDetections(); // Track Usage
       setToolData({ toolName: 'Wrench', isCorrect: false, message: 'Need: Multimeter' });
       setToolVisible(true);
       Speech.speak("That's a wrench, you need a multimeter for this step.");
@@ -114,7 +121,6 @@ export const VisionModeScreen = () => {
   };
 
   if (!permission) {
-    // Camera permissions are still loading.
     return <View style={styles.container} />;
   }
 
@@ -146,25 +152,15 @@ export const VisionModeScreen = () => {
             </View>
           )}
 
-          {/* AR Overlay */}
           <AROverlay visible={arVisible} x={arData.x} y={arData.y} label={arData.label} type="arrow" />
-
-          {/* Tool Overlay */}
           <ToolDetectionOverlay visible={toolVisible} {...toolData} />
-
-          {/* Safety Overlay */}
           <SafetyWarningOverlay visible={safetyVisible} onDismiss={() => setSafetyVisible(false)} />
 
-
-          {/* Dev Menu Toggle */}
           <TouchableOpacity style={styles.devMenuButton} onPress={() => setDevMenuVisible(true)}>
               <Text style={styles.devMenuText}>🛠️ Dev</Text>
           </TouchableOpacity>
 
-
-          {/* Bottom Control Panel */}
           <View style={styles.bottomControls}>
-            {/* AI Message Area */}
             <View style={styles.aiMessageContainer}>
                <Text style={styles.aiMessageText}>{aiMessage || "Point camera at equipment"}</Text>
             </View>
@@ -187,7 +183,6 @@ export const VisionModeScreen = () => {
           </View>
         </View>
 
-        {/* Dev Menu Modal */}
         <Modal visible={devMenuVisible} transparent animationType="slide">
             <View style={styles.modalContainer}>
                 <View style={styles.modalContent}>
