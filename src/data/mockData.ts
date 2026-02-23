@@ -1,4 +1,4 @@
-import { Job } from '../types';
+import { Job, DiagnosticQuestion } from '../types';
 
 export const mockJobs: Job[] = [
   {
@@ -8,39 +8,44 @@ export const mockJobs: Job[] = [
     jobType: 'AC not cooling',
     estimatedPay: 450,
     equipmentInfo: 'Carrier 24ACC6',
-    issueDescription: 'Bad capacitor',
+    issueDescription: 'Diagnosing...',
     steps: [
-      {
-        id: 's1',
-        text: 'Turn off power at the disconnect box',
-        isCompleted: false,
-        voiceText: 'First, locate the disconnect box near the unit and pull the handle to cut the power. Safety first.'
-      },
-      {
-        id: 's2',
-        text: 'Open the access panel',
-        isCompleted: false,
-        voiceText: 'Use your nut driver to remove the screws on the access panel and set it aside.'
-      },
-      {
-        id: 's3',
-        text: 'Discharge the capacitor',
-        isCompleted: false,
-        voiceText: 'Using an insulated screwdriver, bridge the terminals on the capacitor to discharge any stored energy.'
-      },
-      {
-        id: 's4',
-        text: 'Check capacitance',
-        isCompleted: false,
-        voiceText: 'Set your multimeter to capacitance mode and measure the reading across the terminals. It should be within 5% of the rating.'
-      },
-      {
-        id: 's5',
-        text: 'Replace if faulty',
-        isCompleted: false,
-        voiceText: 'If the reading is out of range, unstrap the old capacitor and wire in the new one, matching the terminals exactly.'
-      }
-    ]
+       // Default steps if no diagnosis needed, or post-diagnosis
+    ],
+    diagnosticTree: {
+      id: 'q1',
+      text: 'Is the outdoor fan running?',
+      options: [
+        {
+          label: 'Yes',
+          nextStepId: 'q2'
+        },
+        {
+          label: 'No',
+          finalDiagnosis: 'Bad Capacitor',
+          steps: [
+            {
+              id: 's1',
+              text: 'Turn off power at disconnect',
+              isCompleted: false,
+              voiceText: 'Safety first. Pull the disconnect handle to cut power.'
+            },
+            {
+              id: 's2',
+              text: 'Open access panel',
+              isCompleted: false,
+              voiceText: 'Remove the screws to access the electrical components.'
+            },
+             {
+              id: 's3',
+              text: 'Check capacitor',
+              isCompleted: false,
+              voiceText: 'Locate the silver cylinder. Check if the top is bulging.'
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     id: '2',
@@ -95,3 +100,43 @@ export const mockJobs: Job[] = [
     ]
   }
 ];
+
+// Mock Diagnostic Question Lookup (since nested objects in JSON are hard to traverse recursively without a map in a real DB)
+export const mockQuestions: Record<string, DiagnosticQuestion> = {
+  'q2': {
+    id: 'q2',
+    text: 'Is the compressor making a loud noise?',
+    options: [
+      {
+        label: 'Yes, grinding',
+        finalDiagnosis: 'Compressor Failure',
+        steps: [
+          {
+            id: 'c1',
+            text: 'Verify voltage to compressor',
+            isCompleted: false,
+            voiceText: 'Check if the compressor is receiving 240 volts.'
+          },
+          {
+            id: 'c2',
+            text: 'Check amperage',
+            isCompleted: false,
+            voiceText: 'Measure the current draw. If it is locked rotor amps, the compressor is seized.'
+          }
+        ]
+      },
+      {
+        label: 'No, just humming',
+        finalDiagnosis: 'Hard Start Kit Needed',
+        steps: [
+             {
+            id: 'h1',
+            text: 'Install hard start kit',
+            isCompleted: false,
+            voiceText: 'Wire in a hard start capacitor to assist the compressor startup.'
+          }
+        ]
+      }
+    ]
+  }
+};

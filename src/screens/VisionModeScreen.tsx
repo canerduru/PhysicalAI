@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Modal } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Speech from 'expo-speech';
 import { theme } from '../theme';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { SafetyWarningOverlay } from '../components/SafetyWarningOverlay';
+import { AROverlay } from '../components/AROverlay';
+import { ToolDetectionOverlay } from '../components/ToolDetectionOverlay';
 
 type VisionModeScreenRouteProp = RouteProp<RootStackParamList, 'VisionMode'>;
 type VisionModeScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'VisionMode'>;
@@ -19,6 +22,14 @@ export const VisionModeScreen = () => {
   const [scanning, setScanning] = useState(true);
   const [detected, setDetected] = useState(false);
   const [aiMessage, setAiMessage] = useState<string | null>(null);
+
+  // New State for Overlays
+  const [safetyVisible, setSafetyVisible] = useState(false);
+  const [arVisible, setArVisible] = useState(false);
+  const [toolVisible, setToolVisible] = useState(false);
+  const [toolData, setToolData] = useState({ toolName: '', isCorrect: false, message: '' });
+  const [arData, setArData] = useState({ x: 0.5, y: 0.5, label: '' });
+  const [devMenuVisible, setDevMenuVisible] = useState(false);
 
   useEffect(() => {
     if (permission && !permission.granted) {
@@ -42,6 +53,8 @@ export const VisionModeScreen = () => {
              const stepMsg = `Step 1. ${step1.voiceText}`;
              setAiMessage(stepMsg);
              Speech.speak(stepMsg);
+         } else if (job.diagnosticTree) {
+             setAiMessage("Starting diagnostic mode. Please check the checklist.");
          }
       }, 5000);
 
@@ -66,6 +79,38 @@ export const VisionModeScreen = () => {
       setAiMessage(response);
       Speech.speak(response);
     }, 1500);
+  };
+
+  // Simulation Handlers
+  const triggerSafetyWarning = () => {
+      setSafetyVisible(true);
+      Speech.stop();
+      Speech.speak("STOP! Turn off power first!");
+      setDevMenuVisible(false);
+  };
+
+  const showMultimeter = () => {
+      setToolData({ toolName: 'Multimeter', isCorrect: true, message: 'Ready' });
+      setToolVisible(true);
+      Speech.speak("I see you have a multimeter, good! Set it to voltage mode.");
+      setTimeout(() => setToolVisible(false), 5000);
+      setDevMenuVisible(false);
+  };
+
+  const showWrench = () => {
+      setToolData({ toolName: 'Wrench', isCorrect: false, message: 'Need: Multimeter' });
+      setToolVisible(true);
+      Speech.speak("That's a wrench, you need a multimeter for this step.");
+      setTimeout(() => setToolVisible(false), 5000);
+      setDevMenuVisible(false);
+  };
+
+  const showCapacitorLocation = () => {
+      setArData({ x: 0.6, y: 0.4, label: 'Capacitor here' });
+      setArVisible(true);
+      Speech.speak("The capacitor is located here.");
+      setTimeout(() => setArVisible(false), 5000);
+      setDevMenuVisible(false);
   };
 
   if (!permission) {
@@ -95,11 +140,27 @@ export const VisionModeScreen = () => {
             </View>
           )}
 
-          {detected && (
+          {detected && !safetyVisible && (
             <View style={styles.detectedOverlay}>
                <Text style={styles.detectedText}>{job.equipmentInfo}</Text>
             </View>
           )}
+
+          {/* AR Overlay */}
+          <AROverlay visible={arVisible} x={arData.x} y={arData.y} label={arData.label} type="arrow" />
+
+          {/* Tool Overlay */}
+          <ToolDetectionOverlay visible={toolVisible} {...toolData} />
+
+          {/* Safety Overlay */}
+          <SafetyWarningOverlay visible={safetyVisible} onDismiss={() => setSafetyVisible(false)} />
+
+
+          {/* Dev Menu Toggle */}
+          <TouchableOpacity style={styles.devMenuButton} onPress={() => setDevMenuVisible(true)}>
+              <Text style={styles.devMenuText}>🛠️ Dev</Text>
+          </TouchableOpacity>
+
 
           {/* Bottom Control Panel */}
           <View style={styles.bottomControls}>
@@ -125,6 +186,36 @@ export const VisionModeScreen = () => {
             </View>
           </View>
         </View>
+
+        {/* Dev Menu Modal */}
+        <Modal visible={devMenuVisible} transparent animationType="slide">
+            <View style={styles.modalContainer}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Dev Simulation Controls</Text>
+
+                    <TouchableOpacity style={styles.modalButton} onPress={triggerSafetyWarning}>
+                        <Text style={styles.modalButtonText}>⚠️ Trigger Safety Warning</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.modalButton} onPress={showCapacitorLocation}>
+                        <Text style={styles.modalButtonText}>📍 Show Capacitor Location</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.modalButton} onPress={showMultimeter}>
+                        <Text style={styles.modalButtonText}>✅ Detect Multimeter</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.modalButton} onPress={showWrench}>
+                        <Text style={styles.modalButtonText}>❌ Detect Wrench (Wrong Tool)</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc' }]} onPress={() => setDevMenuVisible(false)}>
+                        <Text style={styles.modalButtonText}>Close</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </Modal>
+
       </CameraView>
     </View>
   );
@@ -231,5 +322,46 @@ const styles = StyleSheet.create({
      textAlign: 'center',
      fontWeight: 'bold',
      fontSize: 18,
-  }
+  },
+  devMenuButton: {
+      position: 'absolute',
+      top: 50,
+      right: 20,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      padding: 10,
+      borderRadius: 20,
+  },
+  devMenuText: {
+      color: 'white',
+      fontWeight: 'bold',
+  },
+  modalContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+      backgroundColor: 'white',
+      padding: 20,
+      borderRadius: 10,
+      width: '80%',
+  },
+  modalTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      marginBottom: 20,
+      textAlign: 'center',
+  },
+  modalButton: {
+      backgroundColor: theme.colors.primary,
+      padding: 15,
+      borderRadius: 8,
+      marginBottom: 10,
+  },
+  modalButtonText: {
+      color: 'white',
+      textAlign: 'center',
+      fontWeight: 'bold',
+  },
 });

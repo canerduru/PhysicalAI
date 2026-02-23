@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ScrollView } from 'react-native';
 import { RouteProp, useRoute } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigation';
-import { RepairStep } from '../types';
+import { RepairStep, DiagnosticQuestion } from '../types';
 import { theme } from '../theme';
+import { mockQuestions } from '../data/mockData';
 import * as Speech from 'expo-speech';
 
 type StepChecklistScreenRouteProp = RouteProp<RootStackParamList, 'StepChecklist'>;
@@ -12,8 +13,39 @@ export const StepChecklistScreen = () => {
   const route = useRoute<StepChecklistScreenRouteProp>();
   const { job } = route.params;
 
-  const [steps, setSteps] = useState<RepairStep[]>(job.steps);
+  const [currentQuestion, setCurrentQuestion] = useState<DiagnosticQuestion | null>(job.diagnosticTree || null);
+  const [diagnosis, setDiagnosis] = useState<string | null>(job.issueDescription || null);
+  const [steps, setSteps] = useState<RepairStep[]>(job.steps || []);
   const [speakingStepId, setSpeakingStepId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If we start with a question, speak it
+    if (currentQuestion) {
+        Speech.speak(currentQuestion.text);
+    }
+  }, [currentQuestion]);
+
+  const handleAnswer = (option: { label: string; nextStepId?: string; finalDiagnosis?: string; steps?: RepairStep[] }) => {
+    Speech.stop();
+    if (option.finalDiagnosis) {
+      setDiagnosis(option.finalDiagnosis);
+      setSteps(option.steps || []);
+      setCurrentQuestion(null);
+      Speech.speak(`Diagnosis: ${option.finalDiagnosis}. Proceeding with repair steps.`);
+    } else if (option.nextStepId) {
+      const nextQ = mockQuestions[option.nextStepId];
+      if (nextQ) {
+        setCurrentQuestion(nextQ);
+      } else {
+         // Fallback if ID missing
+         setDiagnosis("Unknown Issue");
+         setCurrentQuestion(null);
+      }
+    } else {
+       // Leaf node with no steps?
+       setCurrentQuestion(null);
+    }
+  };
 
   const toggleStep = (id: string) => {
     setSteps(currentSteps =>
@@ -67,13 +99,42 @@ export const StepChecklistScreen = () => {
     );
   };
 
+  if (currentQuestion) {
+      return (
+          <View style={styles.container}>
+              <View style={styles.diagnosticContainer}>
+                  <Text style={styles.diagnosticTitle}>Diagnostic Mode</Text>
+                  <Text style={styles.questionText}>{currentQuestion.text}</Text>
+
+                  <View style={styles.optionsContainer}>
+                    {currentQuestion.options.map((option, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={styles.optionButton}
+                            onPress={() => handleAnswer(option)}
+                        >
+                            <Text style={styles.optionText}>{option.label}</Text>
+                        </TouchableOpacity>
+                    ))}
+                  </View>
+              </View>
+          </View>
+      );
+  }
+
   return (
     <View style={styles.container}>
+      {diagnosis && (
+          <View style={styles.diagnosisBanner}>
+              <Text style={styles.diagnosisText}>Diagnosis: {diagnosis}</Text>
+          </View>
+      )}
       <FlatList
         data={steps}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        ListEmptyComponent={<Text style={styles.emptyText}>No repair steps available.</Text>}
       />
     </View>
   );
@@ -84,8 +145,56 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  diagnosticContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.background,
+  },
+  diagnosticTitle: {
+      ...theme.typography.h2,
+      color: theme.colors.primary,
+      marginBottom: theme.spacing.lg,
+      textAlign: 'center',
+  },
+  questionText: {
+      ...theme.typography.h3,
+      textAlign: 'center',
+      marginBottom: theme.spacing.xl,
+  },
+  optionsContainer: {
+      gap: theme.spacing.md,
+  },
+  optionButton: {
+      backgroundColor: theme.colors.cardBackground,
+      padding: theme.spacing.lg,
+      borderRadius: theme.borderRadius.md,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.primary,
+  },
+  optionText: {
+      ...theme.typography.button,
+      color: theme.colors.primary,
+  },
+  diagnosisBanner: {
+      backgroundColor: theme.colors.primary,
+      padding: theme.spacing.md,
+      alignItems: 'center',
+  },
+  diagnosisText: {
+      color: theme.colors.white,
+      fontWeight: 'bold',
+      fontSize: 18,
+  },
   listContent: {
     padding: theme.spacing.md,
+  },
+  emptyText: {
+      textAlign: 'center',
+      marginTop: theme.spacing.xl,
+      ...theme.typography.body,
+      color: theme.colors.textLight,
   },
   stepCard: {
     backgroundColor: theme.colors.cardBackground,
