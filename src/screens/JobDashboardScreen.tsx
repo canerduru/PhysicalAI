@@ -1,16 +1,33 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { mockJobs } from '../data/mockData';
 import { Job } from '../types';
 import { theme } from '../theme';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/navigation';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { getJobs } from '../utils/storage';
 
 type JobDashboardScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'JobDashboard'>;
 
 export const JobDashboardScreen = () => {
   const navigation = useNavigation<JobDashboardScreenNavigationProp>();
+  const [activeJobs, setActiveJobs] = useState<Job[]>(mockJobs);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadJobs = async () => {
+        const completedJobs = await getJobs();
+        const completedIds = new Set(completedJobs.map(j => j.id));
+
+        // Filter out completed jobs from mock data
+        const remainingJobs = mockJobs.filter(job => !completedIds.has(job.id));
+        setActiveJobs(remainingJobs);
+      };
+
+      loadJobs();
+    }, [])
+  );
 
   const renderItem = ({ item }: { item: Job }) => (
     <View style={styles.card}>
@@ -32,10 +49,13 @@ export const JobDashboardScreen = () => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={mockJobs}
+        data={activeJobs}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <Text style={styles.emptyText}>No active jobs for today!</Text>
+        }
       />
     </View>
   );
@@ -48,6 +68,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: theme.spacing.md,
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: theme.spacing.xl,
+    ...theme.typography.body,
+    color: theme.colors.textLight,
   },
   card: {
     backgroundColor: theme.colors.cardBackground,
